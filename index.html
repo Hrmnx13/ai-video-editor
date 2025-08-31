@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Subtitle & Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(to top, #e6e9f0 0%, #eef1f5 100%); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .main-container { animation: fadeIn 0.6s ease-out forwards; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader { border: 4px solid rgba(0, 0, 0, 0.1); border-left-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        .upload-box { transition: background-color 0.3s, border-color 0.3s; }
+        .upload-box.dragover { background-color: #eff6ff; border-color: #3b82f6; }
+        button:active { transform: scale(0.98); transition: transform 0.1s ease-in-out; }
+        input[type=time]::-webkit-calendar-picker-indicator { background: none; display: none; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="main-container bg-white rounded-2xl shadow-xl border border-gray-200/75 w-full max-w-2xl p-8">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">AI Video Subtitle & Editor</h1>
+            <p class="text-gray-500 mt-2">Get automatic subtitles, trim your video, and add a watermark with ease.</p>
+        </div>
+
+        <!-- Views: Upload, Editing, Processing, Download -->
+        <div id="upload-view">
+            <div id="drop-zone" class="upload-box border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer">
+                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <p id="upload-text" class="mt-4 text-lg font-semibold text-gray-700">Click to Upload or Drag Video Here</p>
+                <p class="mt-1 text-sm text-gray-500">MP4, MOV, AVI, WEBM supported</p>
+            </div>
+            <input id="video-upload" type="file" class="hidden" accept="video/*">
+        </div>
+
+        <div id="editing-view" class="hidden">
+            <div class="mb-6"><video id="video-preview" class="w-full rounded-lg bg-black" controls></video></div>
+            <div class="space-y-6">
+                <!-- Watermark Options -->
+                <div>
+                    <label for="add-watermark" class="flex items-center space-x-3 cursor-pointer"><input type="checkbox" id="add-watermark" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="text-lg font-medium text-gray-800">Add Watermark</span></label>
+                    <div id="watermark-options" class="hidden mt-4 pl-8"><label for="watermark-upload" class="text-sm font-medium text-gray-700">Upload Logo (PNG)</label><input type="file" id="watermark-upload" accept="image/png" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/></div>
+                </div>
+                <!-- Trim Options -->
+                <div>
+                    <label for="trim-video" class="flex items-center space-x-3 cursor-pointer"><input type="checkbox" id="trim-video" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="text-lg font-medium text-gray-800">Trim Video</span></label>
+                    <div id="trim-options" class="hidden mt-4 pl-8 grid grid-cols-2 gap-4">
+                        <div><label for="start-time" class="text-sm font-medium text-gray-700">Start Time</label><input type="time" id="start-time" name="start-time" step="1" value="00:00:00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"></div>
+                        <div><label for="end-time" class="text-sm font-medium text-gray-700">End Time</label><input type="time" id="end-time" name="end-time" step="1" value="00:00:00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"></div>
+                    </div>
+                </div>
+                <!-- NEW: Resolution Options -->
+                <div>
+                     <label for="resolution-select" class="text-lg font-medium text-gray-800">Change Resolution</label>
+                     <select id="resolution-select" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2.5">
+                         <option value="original">Keep Original</option>
+                         <option value="1080p">1080p (1920x1080)</option>
+                         <option value="720p">720p (1280x720)</option>
+                         <option value="480p">480p (854x480)</option>
+                     </select>
+                </div>
+                <!-- Action Buttons -->
+                <div class="pt-4 flex items-center space-x-4">
+                    <button id="reset-button" class="w-auto bg-gray-200 text-gray-700 font-bold py-3 px-6 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">Start Over</button>
+                    <button id="process-button" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105">Create My Video</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="processing-view" class="hidden text-center py-12">
+            <div class="loader mx-auto"></div>
+            <p id="status-text" class="mt-6 text-lg font-medium text-gray-700">Uploading video...</p>
+            <div id="error-box" class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-left text-sm hidden">
+                <p class="font-bold">An error occurred:</p>
+                <pre id="error-text" class="whitespace-pre-wrap break-all"></pre>
+            </div>
+        </div>
+
+        <div id="download-view" class="hidden text-center py-12">
+             <svg class="mx-auto h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="mt-6 text-2xl font-bold text-gray-800">Your Video is Ready!</p>
+            <p class="text-gray-500 mt-1">Click the button below to download your masterpiece.</p>
+            <div class="mt-8"><a id="download-link" href="#" class="inline-block w-full max-w-xs mx-auto bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105">Download Video</a></div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Element references (including the new resolution select)
+        const uploadView = document.getElementById('upload-view'), editingView = document.getElementById('editing-view'), processingView = document.getElementById('processing-view'), downloadView = document.getElementById('download-view');
+        const dropZone = document.getElementById('drop-zone'), videoUpload = document.getElementById('video-upload'), videoPreview = document.getElementById('video-preview'), uploadText = document.getElementById('upload-text');
+        const addWatermarkCheckbox = document.getElementById('add-watermark'), watermarkOptions = document.getElementById('watermark-options'), watermarkUpload = document.getElementById('watermark-upload');
+        const trimVideoCheckbox = document.getElementById('trim-video'), trimOptions = document.getElementById('trim-options'), startTimeInput = document.getElementById('start-time'), endTimeInput = document.getElementById('end-time');
+        const resolutionSelect = document.getElementById('resolution-select');
+        const processButton = document.getElementById('process-button'), resetButton = document.getElementById('reset-button'), statusText = document.getElementById('status-text'), errorBox = document.getElementById('error-box'), errorText = document.getElementById('error-text'), downloadLink = document.getElementById('download-link');
+
+        const handleFile = (file) => {
+            if (file && file.type.startsWith('video/')) {
+                const videoURL = URL.createObjectURL(file);
+                videoPreview.src = videoURL;
+                videoPreview.onloadedmetadata = () => {
+                    const duration = videoPreview.duration;
+                    const h = Math.floor(duration / 3600).toString().padStart(2, '0'), m = Math.floor((duration % 3600) / 60).toString().padStart(2, '0'), s = Math.floor(duration % 60).toString().padStart(2, '0');
+                    endTimeInput.value = `${h}:${m}:${s}`;
+                };
+                uploadView.classList.add('hidden'); editingView.classList.remove('hidden');
+            } else {
+                uploadText.textContent = "Invalid File! Please upload a video."; uploadText.classList.add('text-red-500');
+                setTimeout(() => { uploadText.textContent = "Click to Upload or Drag Video Here"; uploadText.classList.remove('text-red-500'); }, 3000);
+            }
+        };
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => videoUpload.click());
+        videoUpload.addEventListener('change', (event) => handleFile(event.target.files[0]));
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+        addWatermarkCheckbox.addEventListener('change', () => watermarkOptions.classList.toggle('hidden', !addWatermarkCheckbox.checked));
+        trimVideoCheckbox.addEventListener('change', () => trimOptions.classList.toggle('hidden', !trimVideoCheckbox.checked));
+        resetButton.addEventListener('click', () => {
+            if (videoPreview.src) URL.revokeObjectURL(videoPreview.src);
+            editingView.classList.add('hidden'); uploadView.classList.remove('hidden'); videoUpload.value = ''; watermarkUpload.value = '';
+            addWatermarkCheckbox.checked = false; trimVideoCheckbox.checked = false;
+            watermarkOptions.classList.add('hidden'); trimOptions.classList.add('hidden');
+            startTimeInput.value = "00:00:00"; endTimeInput.value = "00:00:00";
+            resolutionSelect.value = "original";
+        });
+
+        // Process button logic
+        processButton.addEventListener('click', async () => {
+            editingView.classList.add('hidden'); processingView.classList.remove('hidden');
+            statusText.textContent = "Uploading & Processing..."; errorBox.classList.add('hidden');
+
+            const videoFile = videoUpload.files[0];
+            const formData = new FormData();
+            formData.append('videoFile', videoFile);
+
+            if (addWatermarkCheckbox.checked && watermarkUpload.files[0]) {
+                formData.append('watermark', 'true');
+                formData.append('watermarkFile', watermarkUpload.files[0]);
+            }
+            if (trimVideoCheckbox.checked) {
+                formData.append('trim', 'true');
+                formData.append('startTime', startTimeInput.value);
+                formData.append('endTime', endTimeInput.value);
+            }
+            
+            // NEW: Append the selected resolution
+            formData.append('resolution', resolutionSelect.value);
+
+            try {
+                const response = await fetch('/process', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!response.ok) { throw new Error(result.error || `Server responded with status: ${response.status}`); }
+                
+                downloadLink.href = `/download/${result.processed_filename}`;
+                processingView.classList.add('hidden');
+                downloadView.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error during processing:', error);
+                statusText.textContent = "Processing Failed";
+                errorText.textContent = error.message;
+                errorBox.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+
