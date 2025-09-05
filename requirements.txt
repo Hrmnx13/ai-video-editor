@@ -1,0 +1,9 @@
+#This file lists all the Python libraries needed for the project.
+#The 'waitress' library is a production-quality server for our Flask app.
+flask
+openai-whisper
+srt
+textblob
+rake-nltk
+sumy
+waitress
