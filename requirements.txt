@@ -7,3 +7,4 @@ textblob
 rake-nltk
 sumy
 waitress
+google-generativeai # NEW: For the real AI color grading

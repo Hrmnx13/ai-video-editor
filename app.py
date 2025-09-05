@@ -8,6 +8,10 @@ from werkzeug.utils import secure_filename
 import uuid
 from textblob import TextBlob
 from rake_nltk import Rake
+import json
+
+# NEW: Import for Google's Generative AI
+import google.generativeai as genai
 
 # Imports for the Sumy summarizer library
 from sumy.parsers.plaintext import PlaintextParser
@@ -17,6 +21,13 @@ from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
 
 # --- Configuration ---
+# IMPORTANT: Add your Google AI API Key here
+# Get your key from https://aistudio.google.com/app/apikey
+# For Render, set this as an environment variable.
+API_KEY = os.environ.get('GOOGLE_API_KEY', 'AIzaSyAoV5gntlQxSJaLDBPMoFza2_9C_p9LdBI')
+if API_KEY != 'AIzaSyAoV5gntlQxSJaLDBPMoFza2_9C_p9LdBI':
+    genai.configure(api_key=API_KEY)
+
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed'
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'webm'}
@@ -104,6 +115,44 @@ def find_silences(transcription_result, min_silence_duration=2.0):
         return ["No significant silences found."]
     return silences
 
+# NEW: Real AI function to interpret color grading prompts using an LLM
+def get_color_values_from_prompt(prompt):
+    if not prompt or API_KEY == 'YOUR_API_KEY_HERE':
+        return (0.0, 1.0, 1.0) # Return default if no prompt or API key
+
+    model = genai.GenerativeModel('gemini-pro')
+    
+    # A detailed prompt for the AI to ensure it returns the correct format
+    llm_prompt = f"""
+    You are an expert video colorist AI. A user wants to apply a color grade to their video based on a text prompt.
+    Analyze the user's prompt and determine the best values for brightness, contrast, and saturation.
+
+    User's prompt: "{prompt}"
+
+    - Brightness: A value between -0.5 (darker) and 0.5 (brighter). 0 is no change.
+    - Contrast: A value between 0.5 (less contrast) and 2.0 (more contrast). 1 is no change.
+    - Saturation: A value between 0.0 (black and white) and 3.0 (super saturated). 1 is no change.
+
+    Provide your answer ONLY as a valid JSON object with the keys "brightness", "contrast", and "saturation".
+    Example: {{"brightness": -0.1, "contrast": 1.2, "saturation": 0.8}}
+    """
+    
+    try:
+        response = model.generate_content(llm_prompt)
+        # Clean up the response to get only the JSON part
+        json_response = response.text.strip().replace("```json", "").replace("```", "")
+        color_data = json.loads(json_response)
+        
+        brightness = float(color_data.get("brightness", 0.0))
+        contrast = float(color_data.get("contrast", 1.0))
+        saturation = float(color_data.get("saturation", 1.0))
+        
+        print(f"AI interpreted prompt '{prompt}' as: B={brightness}, C={contrast}, S={saturation}")
+        return (brightness, contrast, saturation)
+    except Exception as e:
+        print(f"Error calling AI model for color grading: {e}")
+        return (0.0, 1.0, 1.0) # Return default on error
+
 def run_ffmpeg_command(command, step_name):
     print(f"Running FFmpeg for: {step_name}")
     print("Command:", " ".join(command))
@@ -121,6 +170,7 @@ def index():
 
 @app.route('/process', methods=['POST'])
 def process_video():
+    # ... (The rest of the process_video function remains the same) ...
     if 'videoFile' not in request.files: return jsonify({'error': 'No video file found'}), 400
     video_file = request.files['videoFile']
     if video_file.filename == '' or not allowed_file(video_file.filename, ALLOWED_VIDEO_EXTENSIONS): return jsonify({'error': 'Invalid video file'}), 400
@@ -152,7 +202,6 @@ def process_video():
                 temp_files.append(music_path)
 
         # AI Processing
-        # CORRECTED: Using the 'tiny' model to save RAM on free servers
         model = whisper.load_model("tiny")
         result = model.transcribe(video_path, fp16=False)
         srt_filename = f"{unique_id}.srt"
