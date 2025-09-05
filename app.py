@@ -104,28 +104,6 @@ def find_silences(transcription_result, min_silence_duration=2.0):
         return ["No significant silences found."]
     return silences
 
-# NEW: AI function to interpret color grading prompts
-def get_color_values_from_prompt(prompt):
-    """Simulates an AI interpreting a color prompt."""
-    prompt = prompt.lower()
-    # (brightness, contrast, saturation)
-    styles = {
-        "vintage": (-0.1, 0.9, 0.8),
-        "cinematic": (-0.05, 1.1, 1.2),
-        "dark": (-0.2, 1.2, 1.0),
-        "moody": (-0.15, 1.15, 0.9),
-        "warm": (0.0, 1.0, 1.3),
-        "sunny": (0.1, 1.1, 1.2),
-        "bright": (0.15, 1.0, 1.1),
-        "vibrant": (0.0, 1.1, 1.5)
-    }
-    for key, values in styles.items():
-        if key in prompt:
-            print(f"AI detected style '{key}', applying color values: {values}")
-            return values
-    print("No specific AI style detected, using default color values.")
-    return (0.0, 1.0, 1.0) # Default values
-
 def run_ffmpeg_command(command, step_name):
     print(f"Running FFmpeg for: {step_name}")
     print("Command:", " ".join(command))
@@ -174,7 +152,8 @@ def process_video():
                 temp_files.append(music_path)
 
         # AI Processing
-        model = whisper.load_model("base")
+        # CORRECTED: Using the 'tiny' model to save RAM on free servers
+        model = whisper.load_model("tiny")
         result = model.transcribe(video_path, fp16=False)
         srt_filename = f"{unique_id}.srt"
         srt_path = os.path.join(app.config['UPLOAD_FOLDER'], srt_filename)
@@ -205,12 +184,11 @@ def process_video():
         if watermark_path: visual_cmd.extend(['-i', watermark_path])
         if music_path: visual_cmd.extend(['-i', music_path])
 
-        video_filters = []
+        video_filters, filter_complex = [], ""
         rotation = request.form.get('rotation', '0')
         if rotation == '90': video_filters.append("transpose=1")
         elif rotation == '-90': video_filters.append("transpose=2")
         
-        # NEW: Use AI prompt for color values
         color_prompt = request.form.get('colorPrompt', '')
         brightness, contrast, saturation = get_color_values_from_prompt(color_prompt)
         if brightness != 0.0 or contrast != 1.0 or saturation != 1.0: 
@@ -284,7 +262,5 @@ if __name__ == '__main__':
         print("'punkt_tab' not found, skipping.")
     nltk.download('averaged_perceptron_tagger') 
     print("NLTK data download complete.")
-    # CORRECTED: Run the server on your network
-    app.run(host='0.0.0.0', port=5000, debug=True)
-    
+    app.run(debug=True, port=5000)
 
